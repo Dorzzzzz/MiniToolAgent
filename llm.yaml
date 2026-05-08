@@ -1,0 +1,14 @@
+# LLM 模型配置
+# model_name: Qwen/Qwen2.5-7B-Instruct
+# model_name: deepseek-ai/DeepSeek-V4-Flash
+model_name: Qwen/Qwen2.5-72B-Instruct
+api_key: sk-fzwrwhviwsvhwfkwlckcocgmscaxdvwgebwnktthonalauka
+base_url: https://api.siliconflow.cn/v1
+
+# 生成参数
+max_tokens: 4096
+temperature: 0.0
+timeout: 120
+
+# 搜索工具配置（可选，不填则使用 Wikipedia API）
+brave_api_key: ""
