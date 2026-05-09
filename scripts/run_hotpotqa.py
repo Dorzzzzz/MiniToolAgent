@@ -1,21 +1,15 @@
 """Run the agent on HotpotQA (search-augmented multi-hop QA)."""
 
-import sys
-import logging
 import argparse
+import logging
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from minitoolagent.config import Config
-from minitoolagent.models import ChatModel
-from minitoolagent.agent import ReActAgent
-from minitoolagent.tools.search import WikipediaSearchTool
-from minitoolagent.prompts import SEARCH_TASK_PROMPT
-from minitoolagent.evaluate import run_evaluation
+from minitoolagent.pipeline import MiniToolAgentPipeline
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_PATH = PROJECT_ROOT / "data" / "raw" / "hotpotqa200.jsonl"
 
 
 def main():
@@ -59,38 +53,20 @@ def main():
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    config = Config.from_yaml(args.config)
-    model = ChatModel(config)
-
-    tools = [
-        WikipediaSearchTool(brave_api_key=config.brave_api_key),
-    ]
-
-    agent = ReActAgent(
-        model=model,
-        tools=tools,
+    pipeline = MiniToolAgentPipeline.hotpotqa(
+        config_path=args.config,
+        output_dir=args.output_dir,
+        log_root=args.log_root,
+        run_name=args.run_name,
         max_steps=args.max_steps,
         enable_reflection=not args.no_reflection,
     )
-
-    run_evaluation(
-        agent=agent,
-        dataset_path=DATA_PATH,
-        task_prompt_template=SEARCH_TASK_PROMPT,
-        output_dir=str(resolve_output_dir(args, "hotpotqa")),
+    pipeline.run_evaluation(
         limit=args.limit,
         resume=not args.no_resume,
         item_retries=args.item_retries,
         retry_sleep=args.retry_sleep,
     )
-
-
-def resolve_output_dir(args: argparse.Namespace, dataset_name: str) -> Path:
-    if args.output_dir:
-        return Path(args.output_dir)
-    if args.run_name:
-        return Path(args.log_root) / args.run_name / dataset_name
-    return Path(args.log_root) / dataset_name
 
 
 if __name__ == "__main__":

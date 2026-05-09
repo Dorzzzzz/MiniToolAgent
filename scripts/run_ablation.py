@@ -1,8 +1,7 @@
 """Run ReflectionAgent evaluations.
 
 This script runs only ReflectionAgent. It keeps the historical filename because
-the project already uses scripts/run_ablation.py for the reflection experiment,
-but it no longer reruns a plain ReActAgent baseline.
+the project already uses scripts/run_ablation.py for the reflection experiment.
 """
 
 from __future__ import annotations
@@ -13,25 +12,12 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from minitoolagent.agent import ReflectionAgent
-from minitoolagent.config import Config
-from minitoolagent.evaluate import run_evaluation
-from minitoolagent.models import ChatModel
-from minitoolagent.prompts import MATH_TASK_PROMPT, SEARCH_TASK_PROMPT
-from minitoolagent.tools.base import Tool
-from minitoolagent.tools.python_repl import PythonREPLTool
-from minitoolagent.tools.search import WikipediaSearchTool
+from minitoolagent.pipeline import MiniToolAgentPipeline
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATASETS = {
-    "hotpotqa": PROJECT_ROOT / "data" / "raw" / "hotpotqa200.jsonl",
-    "aime25": PROJECT_ROOT / "data" / "processed" / "aime25.jsonl",
-    "hmmt": PROJECT_ROOT / "data" / "processed" / "hmmt_feb_2025.jsonl",
-}
 
 
 def run_ablation(
@@ -45,31 +31,22 @@ def run_ablation(
     retry_sleep: float = 30.0,
 ) -> dict:
     """Run ReflectionAgent on one dataset and return metrics."""
-    if dataset_name not in DATASETS:
-        raise ValueError(f"Unknown dataset: {dataset_name}")
-
     run_name = run_name or f"reflection_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    config = Config.from_yaml(config_path)
-    prompt_template, tools_fn, max_steps = _dataset_runtime(dataset_name, config)
-    dataset_dir = Path(log_root) / "ablation" / run_name / dataset_name
 
     print("\n" + "=" * 72)
     print(f"Running {dataset_name}: ReflectionAgent")
     print("=" * 72)
 
-    model = ChatModel(config)
-    agent = ReflectionAgent(
-        model=model,
-        tools=tools_fn(),
-        max_steps=max_steps,
+    pipeline = MiniToolAgentPipeline.reflection(
+        dataset_name=dataset_name,
+        config_path=config_path,
+        log_root=log_root,
+        run_name=run_name,
     )
-    output_dir = dataset_dir / "with_reflection"
+    output_dir = pipeline.spec.output_dir
+    dataset_dir = output_dir.parent
 
-    summary = run_evaluation(
-        agent=agent,
-        dataset_path=DATASETS[dataset_name],
-        task_prompt_template=prompt_template,
-        output_dir=output_dir,
+    summary = pipeline.run_evaluation(
         limit=limit,
         resume=resume,
         item_retries=item_retries,
@@ -89,26 +66,6 @@ def run_ablation(
     _print_metrics(metrics)
     print(f"\nSaved ReflectionAgent metrics to {metrics_path}")
     return metrics
-
-
-def _dataset_runtime(dataset_name: str, config: Config) -> tuple[str, Callable[[], list[Tool]], int]:
-    if dataset_name == "hotpotqa":
-        return (
-            SEARCH_TASK_PROMPT,
-            lambda: [WikipediaSearchTool(brave_api_key=config.brave_api_key)],
-            8,
-        )
-
-    return (
-        MATH_TASK_PROMPT,
-        lambda: [
-            PythonREPLTool(
-                timeout=60,
-                additional_authorized_imports=["sympy", "fractions", "numpy", "scipy"],
-            )
-        ],
-        12,
-    )
 
 
 def _build_run_metrics(summary, output_dir: Path) -> dict:

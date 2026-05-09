@@ -7,27 +7,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from minitoolagent.agent import ReActAgent
-from minitoolagent.config import Config
-from minitoolagent.evaluate import run_evaluation
-from minitoolagent.math_v2 import MathSearchThenCodeAgent
-from minitoolagent.models import ChatModel
-from minitoolagent.prompts import MATH_TASK_PROMPT
-from minitoolagent.tools.python_repl import PythonREPLTool
-from minitoolagent.tools.search import WikipediaSearchTool
+from minitoolagent.pipeline import MiniToolAgentPipeline
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATASETS = {
-    "aime25": PROJECT_ROOT / "data" / "processed" / "aime25.jsonl",
-    "hmmt": PROJECT_ROOT / "data" / "processed" / "hmmt_feb_2025.jsonl",
-}
+DATASETS = {"aime25", "hmmt"}
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Evaluate math agent with term search before code execution"
     )
-    parser.add_argument("--dataset", choices=list(DATASETS.keys()), default="aime25")
+    parser.add_argument("--dataset", choices=sorted(DATASETS), default="aime25")
     parser.add_argument("--config", default=str(PROJECT_ROOT / "llm.yaml"))
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--max-steps", type=int, default=12)
@@ -68,48 +58,22 @@ def main():
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    config = Config.from_yaml(args.config)
-    model = ChatModel(config)
-
-    search_tool = WikipediaSearchTool(brave_api_key=config.brave_api_key)
-    solver_agent = ReActAgent(
-        model=model,
-        tools=[
-            search_tool,
-            PythonREPLTool(
-                timeout=60,
-                additional_authorized_imports=["sympy", "fractions", "numpy", "scipy"],
-            ),
-        ],
+    pipeline = MiniToolAgentPipeline.math_v2(
+        dataset_name=args.dataset,
+        config_path=args.config,
+        output_dir=args.output_dir,
+        log_root=args.log_root,
+        run_name=args.run_name,
         max_steps=args.max_steps,
+        max_search_terms=args.max_search_terms,
         enable_reflection=not args.no_reflection,
     )
-    agent = MathSearchThenCodeAgent(
-        model=model,
-        solver_agent=solver_agent,
-        search_tool=search_tool,
-        max_terms=args.max_search_terms,
-    )
-
-    run_evaluation(
-        agent=agent,
-        dataset_path=DATASETS[args.dataset],
-        task_prompt_template=MATH_TASK_PROMPT,
-        output_dir=str(resolve_output_dir(args)),
+    pipeline.run_evaluation(
         limit=args.limit,
         resume=not args.no_resume,
         item_retries=args.item_retries,
         retry_sleep=args.retry_sleep,
     )
-
-
-def resolve_output_dir(args: argparse.Namespace) -> Path:
-    dataset_name = f"{args.dataset}_math_v2"
-    if args.output_dir:
-        return Path(args.output_dir)
-    if args.run_name:
-        return Path(args.log_root) / args.run_name / dataset_name
-    return Path(args.log_root) / dataset_name
 
 
 if __name__ == "__main__":

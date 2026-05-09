@@ -17,3 +17,5 @@ qwen2.5_72b_logs/
 qwen72b_code_log/
 smolagents/
 .claude/
+llm.yaml
+llm1.yaml
