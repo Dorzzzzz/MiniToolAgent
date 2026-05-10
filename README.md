@@ -63,6 +63,32 @@ timeout: 120
 brave_api_key: ""                         # optional: Brave Search API key
 ```
 
+## Datasets
+
+HotpotQA (200 samples) is already included in `data/raw/hotpotqa200.jsonl`. The math datasets (AIME 2025, HMMT Feb 2025) need to be downloaded and preprocessed first.
+
+**1. Download from Hugging Face**
+
+```bash
+pip install datasets
+python data/download_datasets.py
+```
+
+This saves the raw datasets to `data/raw/aime25/` and `data/raw/hmmt_feb_2025/`. The script uses `hf-mirror.com` automatically, so it works without a VPN.
+
+**2. Preprocess into JSONL**
+
+```bash
+python data/preprocess_datasets.py
+```
+
+This produces:
+
+- `data/processed/aime25.jsonl`
+- `data/processed/hmmt_feb_2025.jsonl`
+
+After preprocessing you can run any math evaluation script.
+
 ## Quick Start
 
 All evaluation scripts live in `scripts/`. Common flags shared by every script:
